@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#173b5e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="更新管理">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>免許・資格 更新管理</title>
+<style>
+:root{--navy:#173b5e;--blue:#eaf2f9;--bg:#f4f7fb;--ink:#203044;--muted:#718096;--line:#e2e8f0;--green:#16845b;--yellow:#b7791f;--red:#c53030;--white:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Yu Gothic UI","Meiryo",sans-serif}
+header{background:linear-gradient(120deg,#173b5e,#28628c);color:white;padding:24px max(18px,calc((100% - 1080px)/2)) 28px}
+header h1{margin:0;font-size:clamp(22px,4vw,30px)}header p{margin:7px 0 0;color:#d9e8f5;font-size:14px}
+main{max-width:1080px;margin:22px auto;padding:0 16px 50px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;box-shadow:0 3px 14px #1e3a5f0a}
+.stat{padding:15px}.stat small{display:block;color:var(--muted);font-size:12px}.stat strong{display:block;font-size:28px;margin-top:5px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin:16px 0}
+button,.btn{border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:650;cursor:pointer}
+.primary{background:var(--navy);color:white}.secondary{background:#e8eef5;color:var(--navy)}.danger{background:#fff0f0;color:var(--red)}
+.search{display:flex;gap:8px;flex-wrap:wrap}.search input,.search select{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:white;font:inherit}
+.panel{padding:18px}.panel h2{font-size:17px;margin:0 0 14px}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-size:14px}th{color:var(--muted);font-size:12px;font-weight:700;background:#f9fbfd}
+.pill{display:inline-block;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:700;white-space:nowrap}.ok{background:#e5f5ed;color:#16734e}.soon{background:#fff4d6;color:#95600b}.urgent{background:#ffe8dc;color:#b45309}.late{background:#ffe5e5;color:#b42318}.done{background:#e7eef8;color:#365a83}
+.row-actions{display:flex;gap:6px}.row-actions button{padding:6px 9px;font-size:12px}
+.empty{text-align:center;color:var(--muted);padding:34px}
+dialog{border:0;border-radius:18px;padding:0;width:min(600px,calc(100% - 24px));box-shadow:0 20px 70px #10243c55}
+dialog::backdrop{background:#10243c88}.modal-head{padding:18px 22px;background:var(--blue);display:flex;justify-content:space-between;align-items:center}.modal-head h2{margin:0;font-size:18px}
+form{padding:20px 22px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:13px;font-weight:700;color:#526174}.field input,.field textarea,.field select{width:100%;border:1px solid #d4dce6;border-radius:9px;padding:10px;font:inherit;background:white}.field textarea{min-height:75px;resize:vertical}.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.note{font-size:12px;color:var(--muted);line-height:1.6;margin-top:14px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:18px}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.toolbar{align-items:stretch}.search{width:100%}.search input{flex:1;min-width:140px}.fields{grid-template-columns:1fr}.field.full{grid-column:auto}main{margin-top:14px}.stat strong{font-size:24px}}
+</style>
+</head>
+<body>
+<header><h1>免許・資格 更新管理</h1><p>大切な更新期限を、ひとつの画面でまとめて管理。</p></header>
+<main>
+<section class="stats" aria-label="集計">
+ <div class="stat"><small>登録中</small><strong id="total">0</strong></div>
+ <div class="stat"><small>90日以内</small><strong id="within90">0</strong></div>
+ <div class="stat"><small>30日以内</small><strong id="within30">0</strong></div>
+ <div class="stat"><small>期限切れ</small><strong id="expired">0</strong></div>
+</section>
+<div class="toolbar">
+ <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="addBtn">＋ 免許・資格を登録</button><button class="secondary" id="installBtn" hidden>ホーム画面に追加</button></div>
+ <div class="search">
+  <input id="q" placeholder="名称・更新先で検索" aria-label="検索">
+  <select id="filter"><option value="all">すべて表示</option><option value="attention">更新期限が近い</option><option value="expired">期限切れ</option><option value="done">更新済み</option></select>
+  <button class="secondary" id="exportBtn">データを書き出す</button>
+  <button class="secondary" id="importBtn">読み込む</button>
+  <input id="importFile" type="file" accept="application/json" hidden>
+ </div>
+</div>
+<section class="panel">
+ <h2>免許・資格一覧 <span id="countLabel" style="font-size:12px;color:#718096;font-weight:400"></span></h2>
+ <div class="table-wrap">
+ <table><thead><tr><th>免許・資格名</th><th>有効期限</th><th>残り日数</th><th>期限判定</th><th>更新状況</th><th>操作</th></tr></thead>
+ <tbody id="rows"></tbody></table>
+ <div id="empty" class="empty">まだ登録がありません。<br>「免許・資格を登録」から追加してください。</div>
+ </div>
+</section>
+<p class="note">データはこのブラウザ内に保存されます。同じ端末・同じブラウザでご利用ください。ブラウザのデータ削除や端末変更に備え、定期的に「データを書き出す」でバックアップしてください。通知はアプリを開いたときに期限を確認して表示します。正式な更新期限・必要書類は各発行元の案内をご確認ください。</p>
+</main>
+<footer>免許・資格 更新管理アプリ</footer>
+
+<dialog id="dlg">
+ <div class="modal-head"><h2 id="dialogTitle">免許・資格を登録</h2><button class="secondary" type="button" id="closeBtn">閉じる</button></div>
+ <form id="itemForm">
+  <input type="hidden" id="itemId">
+  <div class="fields">
+   <div class="field full"><label for="name">免許・資格名 *</label><input id="name" required maxlength="100" placeholder="例：運転免許証"></div>
+   <div class="field"><label for="issued">交付日・取得日</label><input id="issued" type="date"></div>
+   <div class="field"><label for="expiry">有効期限 *</label><input id="expiry" type="date" required></div>
+   <div class="field"><label for="office">更新手続き先・窓口</label><input id="office" maxlength="120" placeholder="例：運転免許センター"></div>
+   <div class="field"><label for="status">更新状況</label><select id="status"><option>未更新</option><option>更新手続き中</option><option>更新済み</option></select></div>
+   <div class="field full"><label for="memo">必要書類・メモ</label><textarea id="memo" maxlength="1000" placeholder="必要書類、予約方法、更新時の注意点など"></textarea></div>
+  </div>
+  <div class="form-actions"><button class="secondary" type="button" id="cancelBtn">キャンセル</button><button class="primary" type="submit">保存する</button></div>
+ </form>
+</dialog>
+<script>
+const KEY='licenseExpiryManager.v1';
+let items=[];
+const $=id=>document.getElementById(id);
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const daysLeft=s=>Math.ceil((new Date(s+'T00:00:00')-today())/86400000);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('ja-JP'):'—';
+function load(){try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch{items=[]}}
+function save(){localStorage.setItem(KEY,JSON.stringify(items))}
+function state(item){if(item.status==='更新済み')return ['更新済み','done'];const n=daysLeft(item.expiry);if(n<0)return ['期限切れ','late'];if(n<=7)return ['7日以内','late'];if(n<=30)return ['30日以内','urgent'];if(n<=60)return ['60日以内','soon'];if(n<=90)return ['90日以内','soon'];return ['余裕あり','ok']}
+function render(){
+ const active=items.filter(x=>x.status!=='更新済み');
+ $('total').textContent=items.length;
+ $('within90').textContent=active.filter(x=>daysLeft(x.expiry)>=0&&daysLeft(x.expiry)<=90).length;
+ $('within30').textContent=active.filter(x=>daysLeft(x.expiry)>=0&&daysLeft(x.expiry)<=30).length;
+ $('expired').textContent=active.filter(x=>daysLeft(x.expiry)<0).length;
+ const q=$('q').value.trim().toLowerCase(), f=$('filter').value;
+ let list=items.filter(x=>(x.name+' '+(x.office||'')).toLowerCase().includes(q));
+ if(f==='attention')list=list.filter(x=>x.status!=='更新済み'&&daysLeft(x.expiry)<=90);
+ if(f==='expired')list=list.filter(x=>x.status!=='更新済み'&&daysLeft(x.expiry)<0);
+ if(f==='done')list=list.filter(x=>x.status==='更新済み');
+ list.sort((a,b)=>a.expiry.localeCompare(b.expiry));
+ $('countLabel').textContent=`（${list.length}件）`;
+ $('rows').innerHTML=list.map(x=>{const [label,cls]=state(x),n=daysLeft(x.expiry);return `<tr>
+ <td><strong>${esc(x.name)}</strong><div style="font-size:12px;color:#718096">${esc(x.office||'')}</div></td>
+ <td>${fmt(x.expiry)}</td><td>${x.status==='更新済み'?'—':n<0?`${Math.abs(n)}日超過`:`あと${n}日`}</td>
+ <td><span class="pill ${cls}">${label}</span></td><td>${esc(x.status||'未更新')}</td>
+ <td><div class="row-actions"><button class="secondary" data-edit="${esc(x.id)}">編集</button><button class="danger" data-del="${esc(x.id)}">削除</button></div></td></tr>`}).join('');
+ $('empty').style.display=list.length?'none':'block';
+}
+function openForm(item){
+ $('itemForm').reset();$('itemId').value=item?.id||'';
+ $('dialogTitle').textContent=item?'免許・資格を編集':'免許・資格を登録';
+ if(item){$('name').value=item.name;$('issued').value=item.issued||'';$('expiry').value=item.expiry;$('office').value=item.office||'';$('status').value=item.status||'未更新';$('memo').value=item.memo||''}
+ $('dlg').showModal();
+}
+function closeForm(){$('dlg').close()}
+$('addBtn').onclick=()=>openForm();
+$('closeBtn').onclick=$('cancelBtn').onclick=closeForm;
+$('itemForm').onsubmit=e=>{e.preventDefault();const id=$('itemId').value||crypto.randomUUID();const obj={id,name:$('name').value.trim(),issued:$('issued').value,expiry:$('expiry').value,office:$('office').value.trim(),status:$('status').value,memo:$('memo').value.trim()};const i=items.findIndex(x=>x.id===id);if(i>=0)items[i]=obj;else items.push(obj);save();render();closeForm()};
+$('rows').onclick=e=>{const edit=e.target.closest('[data-edit]'),del=e.target.closest('[data-del]');if(edit){const x=items.find(x=>x.id===edit.dataset.edit);if(x)openForm(x)}if(del){const x=items.find(x=>x.id===del.dataset.del);if(x&&confirm(`「${x.name}」を削除しますか？`)){items=items.filter(y=>y.id!==x.id);save();render()}}};
+$('q').oninput=render;$('filter').onchange=render;
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='免許資格データ_backup.json';a.click();URL.revokeObjectURL(url)};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data)||!confirm('現在の登録データを読み込んだデータで置き換えます。よろしいですか？'))return;items=data;save();render();alert('読み込みました。')}catch{alert('ファイルを読み込めませんでした。')}e.target.value=''};
+function checkReminders(){
+ const alerts=items.filter(x=>x.status!=='更新済み').map(x=>({x,n:daysLeft(x.expiry)})).filter(o=>[90,60,30,7,0].includes(o.n)||o.n<0);
+ if(!alerts.length)return;
+ const key='licenseExpiryManager.lastAlert',stamp=today().toISOString().slice(0,10);
+ if(localStorage.getItem(key)===stamp)return;
+ localStorage.setItem(key,stamp);
+ const msg=alerts.slice(0,5).map(o=>`${o.x.name}：${o.n<0?`${Math.abs(o.n)}日超過`:`あと${o.n}日`}`).join('\n');
+ setTimeout(()=>alert('更新期限のお知らせ\n\n'+msg+(alerts.length>5?'\nほか '+(alerts.length-5)+' 件':'')+'\n\n詳細は一覧をご確認ください。'),300);
+}
+load();render();checkReminders();
+
+let installPrompt = null;
+const installBtn = document.getElementById('installBtn');
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  installBtn.hidden = false;
+});
+installBtn.addEventListener('click', async () => {
+  if (!installPrompt) {
+    alert('ブラウザのメニューから「ホーム画面に追加」または「アプリをインストール」を選んでください。');
+    return;
+  }
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installBtn.hidden = true;
+});
+window.addEventListener('appinstalled', () => {
+  installBtn.hidden = true;
+  alert('ホーム画面への追加が完了しました。');
+});
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
+}
+</script>
+</body></html>
